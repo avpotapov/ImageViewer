@@ -43,7 +43,7 @@ type
 implementation
 
 uses
-  ImageViewer.ShlExt;
+  ImageViewer.ShellAdaptor;
 
 procedure TFolderNode.SetPidl(const APidl: PItemIdList);
 var
@@ -55,7 +55,7 @@ begin
   FPidl := APidl;
 
   // Получим информацию о файле, папке или диске по Pidl
-  FolderInfo := TShlExt.GetFileInfo(FPidl);
+  FolderInfo := TTShellAdaptor.GetFileInfo(FPidl);
 
   // Текста папки
   Text := FolderInfo.szDisplayName;
@@ -63,7 +63,7 @@ begin
   ImageIndex    := FolderInfo.iIcon;
   SelectedIndex := FolderInfo.iIcon;
   // Маркер вложенных папок
-  HasChildren := TShlExt.HasFolder(FPidl, GetParentPidl);
+  HasChildren := TTShellAdaptor.HasFolder(FPidl, GetParentPidl);
 end;
 
 function TFolderNode.GetParentPidl: PItemIdList;
@@ -76,7 +76,7 @@ end;
 destructor TFolderNode.Destroy;
 begin
   // Удалить Pidl
-  TShlExt.FreePidl(FPidl);
+  TTShellAdaptor.FreePidl(FPidl);
   inherited;
 end;
 
@@ -86,7 +86,7 @@ begin
 
   if APidl = nil then
     // Получим PIDL для корневой папки (по умолчанию 'Мой Компьютер')
-    Result.Pidl := TShlExt.GetRootPidl
+    Result.Pidl := TTShellAdaptor.GetRootPidl
   else
     Result.Pidl := APidl;
 end;
@@ -101,7 +101,7 @@ begin
     Exit;
 
   // Получить список вложенных папок
-  FolderList := TShlExt.GetFolderList(TFolderNode(ANode).Pidl);
+  FolderList := TTShellAdaptor.GetFolderList(TFolderNode(ANode).Pidl);
 
   // Перебор всех вложенных папок
   while FolderList.Next(1, RelPidl, Fetched) = NOERROR do
@@ -110,7 +110,7 @@ begin
       AbsPidl := IlCombine(TFolderNode(ANode).Pidl, RelPidl);
       AddFolderNode(ANode, AbsPidl);
     finally
-      TShlExt.FreePidl(RelPidl);
+      TTShellAdaptor.FreePidl(RelPidl);
     end;
 end;
 

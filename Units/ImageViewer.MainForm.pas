@@ -1,41 +1,44 @@
 unit ImageViewer.MainForm;
-
+
 interface
 
 uses
   Winapi.Windows, Winapi.Messages, Winapi.ShellApi, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   System.Generics.Collections,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtCtrls, Vcl.ComCtrls, System.Win.ComObj, Winapi.ShlObj,
-  System.ImageList, Vcl.ImgList, CommCtrl, ImageViewer.ThumbExtractor,
-  Vcl.StdCtrls;
-
-const
-  ThumbnailSizes: array [0 .. 5] of Integer = (16, 32, 64, 128, 256, 512);
+  System.ImageList, Vcl.ImgList, CommCtrl,
+  Vcl.StdCtrls, ImageViewer.Thumbnail, ImageViewer.ThumbnailCreator,
+  Vcl.Menus;
 
 type
   TMainForm = class(TForm)
+
     FolderTree: TTreeView;
-    ThumbnailList: TListView;
+    ThumbnailView: TListView;
     Splitter: TSplitter;
     FolderIconList: TImageList;
-    ThumbnailSizer: TTrackBar;
     ThumbnailPanel: TPanel;
     ImageList: TImageList;
+    SizerPanel: TPanel;
+    SizerBox: TComboBox;
+    MainMenu: TMainMenu;
+    ExitMenu: TMenuItem;
+    AboutMenu: TMenuItem;
     procedure FolderTreeCreateNodeClass(Sender: TCustomTreeView; var NodeClass: TTreeNodeClass);
     procedure FormCreate(Sender: TObject);
     procedure FolderTreeExpanding(Sender: TObject; Node: TTreeNode; var AllowExpansion: Boolean);
     procedure FolderTreeCollapsed(Sender: TObject; Node: TTreeNode);
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
-    procedure FolderTreeChange(Sender: TObject; Node: TTreeNode);
-    procedure ThumbnailListAdvancedCustomDrawItem(Sender: TCustomListView; Item: TListItem; State: TCustomDrawState;
+    procedure ThumbnailViewAdvancedCustomDrawItem(Sender: TCustomListView; Item: TListItem; State: TCustomDrawState;
       Stage: TCustomDrawStage; var DefaultDraw: Boolean);
-    procedure ThumbnailSizerChange(Sender: TObject);
+    procedure ExitMenuClick(Sender: TObject);
+    procedure AboutMenuClick(Sender: TObject);
   private
-    FThumbExtractor: TThumbExtractor;
-    FThumbFileList : TList<IThumbFile>;
-    procedure AddThumbNail(AThumbFile: IThumbFile);
-  public
-    { Public declarations }
+    FThumbnailCreator: TThumbnailCreator;
+    FThumbnailCache  : TList<IThumbnail>;
+    procedure AddThumbNail(AThumbFile: IThumbnail);
+    procedure LoadFiles(Sender: TObject);
+    procedure ChangeThumbnailCache(Sender: TObject; const Item: IThumbnail; Action: TCollectionNotification);
   end;
 
 var
@@ -46,14 +49,17 @@ implementation
 {$R *.dfm}
 
 uses
-  ImageViewer.ShlExt,
+  ImageViewer.ShellAdaptor,
   ImageViewer.FolderTreeHelper,
-  ImageViewer.ThumbnailListHelper;
+  ImageViewer.About;
+
+const
+  ThumbnailSizes: array [0 .. 6] of Integer = (16, 32, 64, 128, 256, 512, 1024);
 
 procedure TMainForm.FormClose(Sender: TObject; var Action: TCloseAction);
 begin
-  FreeAndNil(FThumbExtractor);
-  FreeAndNil(FThumbFileList);
+  FreeAndNil(FThumbnailCreator);
+  FreeAndNil(FThumbnailCache);
 end;
 
 procedure TMainForm.FormCreate(Sender: TObject);
@@ -61,47 +67,43 @@ var
   FileInfo: TShFileInfo;
 begin
   // Инициализация COM-объектов shell.dll
-  TShlExt.Initialize;
+  TTShellAdaptor.Initialize;
   // Загрузить системные иконки в FolderIconList
   FolderIconList.Handle := SHGetFileInfo('.txt', FILE_ATTRIBUTE_NORMAL, FileInfo, SizeOf(FileInfo),
     SHGFI_SYSICONINDEX or SHGFI_SMALLICON or SHGFI_USEFILEATTRIBUTES);
   // Создание корневого узла файловой системы
   FolderTree.Items.AddRootNode();
-  //
-  FThumbExtractor                := TThumbExtractor.Create;
-  FThumbExtractor.OnThumbExtract := AddThumbNail;
-  FThumbExtractor.Size           := ThumbnailSizes[ThumbnailSizer.Position];
-  FThumbFileList                 := TList<IThumbFile>.Create;
-  ImageList.SetSize(ThumbnailSizes[ThumbnailSizer.Position], ThumbnailSizes[ThumbnailSizer.Position]);
-end;
+  // Загрузка файлов при выборе папки
+  FolderTree.OnClick := LoadFiles;
 
-procedure TMainForm.ThumbnailListAdvancedCustomDrawItem(Sender: TCustomListView; Item: TListItem;
-  State: TCustomDrawState; Stage: TCustomDrawStage; var DefaultDraw: Boolean);
-var
-  Text    : String;
-  IconRect: TRect;
-  TextRect: TRect;
-begin
-  Sender.Canvas.Font.Size := 10;
-  TextRect                := Item.DisplayRect(TDisplayCode.drLabel);
-  Text                    := TShlExt.GetFileInfo(FThumbFileList[Item.Index].Pidl).szDisplayName;
-  Sender.Canvas.TextRect(TextRect, Text);
+  // Создатель миниатюр
+  FThumbnailCreator                    := TThumbnailCreator.Create;
+  FThumbnailCreator.OnThumbnailExtract := AddThumbNail;
 
-  IconRect := Item.DisplayRect(TDisplayCode.drIcon);
-  Sender.Canvas.Draw(IconRect.Left, IconRect.Top, FThumbFileList[Item.Index].Bitmap);
+  // Перезегрузка файлов при изменении размера миниатюр
+  SizerBox.ItemIndex := 3;
+  SizerBox.OnChange  := LoadFiles;
+
+  // Кэш миниатюр текущей папки
+  FThumbnailCache          := TList<IThumbnail>.Create;
+  FThumbnailCache.OnNotify := ChangeThumbnailCache;
 
 end;
 
-procedure TMainForm.ThumbnailSizerChange(Sender: TObject);
+procedure TMainForm.LoadFiles(Sender: TObject);
 begin
-  FThumbExtractor.Stop;
-  ThumbnailList.Items.Clear;
-    ImageList.SetSize(ThumbnailSizes[ThumbnailSizer.Position], ThumbnailSizes[ThumbnailSizer.Position]);
-  FThumbFileList.Clear;
-  FThumbExtractor.Size           := ThumbnailSizes[ThumbnailSizer.Position];
-  // Получить миниатюры файлов
-  if Assigned(FolderTree.Selected) and Assigned(FThumbExtractor) then
-    FThumbExtractor.AddFiles(TShlExt.GetFileList(TFolderNode(FolderTree.Selected).Pidl), TFolderNode(FolderTree.Selected).Pidl);
+  if Assigned(FolderTree.Selected) and Assigned(FThumbnailCreator) then
+  begin
+    // Размер миниатюр
+    ImageList.SetSize(ThumbnailSizes[SizerBox.ItemIndex], ThumbnailSizes[SizerBox.ItemIndex]);
+    FThumbnailCreator.Size := ThumbnailSizes[SizerBox.ItemIndex];
+
+    // Загрузка файлов в экстрактор миниатюр
+    FThumbnailCreator.AddFiles(TTShellAdaptor.GetFileList(TFolderNode(FolderTree.Selected).Pidl),
+      TFolderNode(FolderTree.Selected).Pidl);
+  end;
+  // Не забываем очистить кеш
+  FThumbnailCache.Clear;
 end;
 
 procedure TMainForm.FolderTreeCreateNodeClass(Sender: TCustomTreeView; var NodeClass: TTreeNodeClass);
@@ -116,16 +118,15 @@ begin
   Node.Owner.AddFolders(Node);
 end;
 
-procedure TMainForm.FolderTreeChange(Sender: TObject; Node: TTreeNode);
+procedure TMainForm.ChangeThumbnailCache(Sender: TObject; const Item: IThumbnail; Action: TCollectionNotification);
 begin
-  FThumbExtractor.Stop;
-  ThumbnailList.Items.Clear;
-  FThumbFileList.Clear;
+  // Колечество миниатюр на экране соответствует количеству в кеше
+  ThumbnailView.Items.Count := TList<IThumbnail>(Sender).Count;
+end;
 
-  // Получить миниатюры файлов
-  if Assigned(Node) and Assigned(FThumbExtractor) then
-    FThumbExtractor.AddFiles(TShlExt.GetFileList(TFolderNode(Node).Pidl), TFolderNode(Node).Pidl);
-
+procedure TMainForm.ExitMenuClick(Sender: TObject);
+begin
+  Close;
 end;
 
 procedure TMainForm.FolderTreeCollapsed(Sender: TObject; Node: TTreeNode);
@@ -135,10 +136,52 @@ begin
   Node.HasChildren := True;
 end;
 
-procedure TMainForm.AddThumbNail(AThumbFile: IThumbFile);
+procedure TMainForm.AboutMenuClick(Sender: TObject);
+var
+  AboutBox: TAboutBox;
 begin
-  FThumbFileList.Add(AThumbFile);
-  ThumbnailList.Items.Count := ThumbnailList.Items.Count + 1;
+  AboutBox := TAboutBox.Create(Self);
+  try
+    AboutBox.ShowModal;
+  finally
+    AboutBox.Release;
+  end;
+end;
+
+procedure TMainForm.AddThumbNail(AThumbFile: IThumbnail);
+begin
+  // Добавить миниатюру в кеш
+  FThumbnailCache.Add(AThumbFile);
+end;
+
+procedure TMainForm.ThumbnailViewAdvancedCustomDrawItem(Sender: TCustomListView; Item: TListItem;
+  State: TCustomDrawState; Stage: TCustomDrawStage; var DefaultDraw: Boolean);
+var
+  Text    : String;
+  IconRect: TRect;
+  TextRect: TRect;
+  Bitmap  : TBitmap;
+begin
+  Sender.Canvas.Font.Size := 8;
+  TextRect                := Item.DisplayRect(TDisplayCode.drLabel);
+  Text                    := TTShellAdaptor.GetFileInfo(FThumbnailCache[Item.Index].Pidl).szDisplayName;
+  Sender.Canvas.TextWidth(Text);
+  // Выводим название файла по центру
+  TextRect.Left := TextRect.Left + ((TextRect.Width - Sender.Canvas.TextWidth(Text)) shr 1);
+  Sender.Canvas.TextRect(TextRect, Text);
+
+  // Размер рамки под иконку
+  IconRect := Item.DisplayRect(TDisplayCode.drIcon);
+  Bitmap   := FThumbnailCache[Item.Index].Bitmap;
+
+  // Рамка для миниатюры
+  Sender.Canvas.Pen.Color := clMedGray;
+  Sender.Canvas.RoundRect(IconRect, IconRect.Height shr 2, IconRect.Width shr 2);
+
+  // Разместим миниатюру по центру
+  Sender.Canvas.Draw(IconRect.Left + ((IconRect.Width - Bitmap.Width) shr 1),
+    IconRect.Top + ((IconRect.Height - Bitmap.Height) shr 1), FThumbnailCache[Item.Index].Bitmap);
 end;
 
 end.
+

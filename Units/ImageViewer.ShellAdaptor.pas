@@ -1,4 +1,4 @@
-unit ImageViewer.ShlExt;
+unit ImageViewer.ShellAdaptor;
 
 interface
 
@@ -25,9 +25,7 @@ type
     function GetThumbnail(cx : uint; out hBitmap : HBITMAP; out bitmapType : dword):HRESULT;stdcall;
   end;
 
-
-
-  TShlExt = class
+  TTShellAdaptor = class
   private
     class var DesktopFolder: IShellFolder;
   private
@@ -47,7 +45,7 @@ type
 
 implementation
 
-class procedure TShlExt.Initialize;
+class procedure TTShellAdaptor.Initialize;
 begin
   OleCheck(SHGetDesktopFolder(DesktopFolder));
   OleCheck(ShGetMalloc(Malloc));
@@ -59,7 +57,7 @@ begin
 {$ENDREGION}
 end;
 
-class procedure TShlExt.FreePidl(out APidl: PItemIdList);
+class procedure TTShellAdaptor.FreePidl(out APidl: PItemIdList);
 begin
 {$REGION 'Debug'}
 {$IFDEF DEBUG}
@@ -70,7 +68,7 @@ begin
   APidl := nil;
 end;
 
-class function TShlExt.GetExtractImage(APidl, AParentPidl: PItemIdList): IExtractImage;
+class function TTShellAdaptor.GetExtractImage(APidl, AParentPidl: PItemIdList): IExtractImage;
 var
   RelPidl: PItemIdList;
   ShellFolder: IShellFolder;
@@ -87,7 +85,7 @@ begin
     ShellFolder.GetUIObjectOf(0, 1, RelPidl, IExtractImage, nil, Result);
 end;
 
-class function TShlExt.GetFileInfo(const APidl: PItemIdList): TShFileInfo;
+class function TTShellAdaptor.GetFileInfo(const APidl: PItemIdList): TShFileInfo;
 var
   Flags: DWord;
 begin
@@ -101,7 +99,7 @@ begin
   SHGetFileInfo(PChar(APidl), 0, Result, SizeOf(Result), Flags);
 end;
 
-class function TShlExt.GetFileList(const APidl: PItemIdList): IEnumIdList;
+class function TTShellAdaptor.GetFileList(const APidl: PItemIdList): IEnumIdList;
 var
   Flags: Cardinal;
 begin
@@ -115,7 +113,7 @@ begin
   OleCheck(GetShellFolder(APidl).EnumObjects(0, Flags, Result));
 end;
 
-class function TShlExt.GetFolderList(const APidl: PItemIdList): IEnumIdList;
+class function TTShellAdaptor.GetFolderList(const APidl: PItemIdList): IEnumIdList;
 var
   Flags: Cardinal;
 begin
@@ -129,7 +127,7 @@ begin
   OleCheck(GetShellFolder(APidl).EnumObjects(0, Flags, Result));
 end;
 
-class function TShlExt.GetRootPidl(const ACsidl: DWord): PItemIdList;
+class function TTShellAdaptor.GetRootPidl(const ACsidl: DWord): PItemIdList;
 begin
   OleCheck(SHGetSpecialFolderLocation(0, ACsidl, Result));
 {$REGION 'Debug'}
@@ -139,7 +137,7 @@ begin
 {$ENDREGION}
 end;
 
-class function TShlExt.GetShellFolder(const APidl: PItemIdList): IShellFolder;
+class function TTShellAdaptor.GetShellFolder(const APidl: PItemIdList): IShellFolder;
 begin
 {$REGION 'Debug'}
 {$IFDEF DEBUG}
@@ -151,7 +149,7 @@ begin
   OleCheck(DesktopFolder.BindToObject(APidl, nil, IShellFolder, Result));
 end;
 
-class function TShlExt.GetThumbnailProvider(const APidl: PItemIdList): IThumbnailProvider;
+class function TTShellAdaptor.GetThumbnailProvider(const APidl: PItemIdList): IThumbnailProvider;
 var
   ShellItem: IShellItem;
 begin
@@ -162,7 +160,7 @@ begin
 
 end;
 
-class function TShlExt.HasFolder(const APidl, AParentPidl: PItemIdList): Boolean;
+class function TTShellAdaptor.HasFolder(const APidl, AParentPidl: PItemIdList): Boolean;
 var
   Flags       : DWord;
   RelPidl: PItemIdList;
