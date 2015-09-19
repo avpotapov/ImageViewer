@@ -43,8 +43,8 @@ object AboutBox: TAboutBox
     object Copyright: TLabel
       Left = 152
       Top = 66
-      Width = 120
-      Height = 39
+      Width = 117
+      Height = 26
       Caption = 'Copyright: GNU General Public License , 2015'
       WordWrap = True
       IsControl = True
@@ -52,9 +52,9 @@ object AboutBox: TAboutBox
     object Comments: TLabel
       Left = 152
       Top = 102
-      Width = 81
-      Height = 43
-      Caption = 'Develop by Aleksei Potapov'
+      Width = 129
+      Height = 91
+      Caption = 'Program has been created by Aleksei Potapov'
       WordWrap = True
       IsControl = True
     end

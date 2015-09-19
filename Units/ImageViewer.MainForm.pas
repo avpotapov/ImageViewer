@@ -3,12 +3,27 @@ unit ImageViewer.MainForm;
 interface
 
 uses
-  Winapi.Windows, Winapi.Messages, Winapi.ShellApi, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
+  Winapi.Windows,
+  Winapi.ShellApi,
+
+  System.SysUtils,
+  System.Variants,
+  System.Classes,
+  System.ImageList,
   System.Generics.Collections,
-  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtCtrls, Vcl.ComCtrls, System.Win.ComObj, Winapi.ShlObj,
-  System.ImageList, Vcl.ImgList, CommCtrl,
-  Vcl.StdCtrls, ImageViewer.Thumbnail, ImageViewer.ThumbnailCreator,
-  Vcl.Menus;
+
+  Vcl.Graphics,
+  Vcl.Controls,
+  Vcl.Forms,
+  Vcl.Dialogs,
+  Vcl.ExtCtrls,
+  Vcl.ComCtrls,
+  Vcl.ImgList,
+  Vcl.StdCtrls,
+  Vcl.Menus,
+
+  ImageViewer.Thumbnail,
+  ImageViewer.ThumbnailCreator;
 
 type
   TMainForm = class(TForm)
@@ -51,6 +66,7 @@ implementation
 uses
   ImageViewer.ShellAdaptor,
   ImageViewer.FolderTreeHelper,
+  ImageViewer.ThumbnailViewHelper,
   ImageViewer.About;
 
 const
@@ -68,6 +84,7 @@ var
 begin
   // Инициализация COM-объектов shell.dll
   TTShellAdaptor.Initialize;
+
   // Загрузить системные иконки в FolderIconList
   FolderIconList.Handle := SHGetFileInfo('.txt', FILE_ATTRIBUTE_NORMAL, FileInfo, SizeOf(FileInfo),
     SHGFI_SYSICONINDEX or SHGFI_SMALLICON or SHGFI_USEFILEATTRIBUTES);
@@ -86,6 +103,7 @@ begin
 
   // Кэш миниатюр текущей папки
   FThumbnailCache          := TList<IThumbnail>.Create;
+  // Связываем изменение количества миниатюр в кеше с их выводом в ThumbnailView
   FThumbnailCache.OnNotify := ChangeThumbnailCache;
 
 end;
@@ -124,16 +142,32 @@ begin
   ThumbnailView.Items.Count := TList<IThumbnail>(Sender).Count;
 end;
 
-procedure TMainForm.ExitMenuClick(Sender: TObject);
-begin
-  Close;
-end;
-
 procedure TMainForm.FolderTreeCollapsed(Sender: TObject; Node: TTreeNode);
 begin
   // Удалить вложенные папки
   Node.DeleteChildren;
   Node.HasChildren := True;
+end;
+
+procedure TMainForm.AddThumbNail(AThumbFile: IThumbnail);
+begin
+  // Добавить миниатюру в кеш
+  FThumbnailCache.Add(AThumbFile);
+end;
+
+procedure TMainForm.ThumbnailViewAdvancedCustomDrawItem(Sender: TCustomListView; Item: TListItem;
+  State: TCustomDrawState; Stage: TCustomDrawStage; var DefaultDraw: Boolean);
+begin
+  // Название файла по центру
+  Sender.DrawText(Item.DisplayRect(TDisplayCode.drLabel),
+    TTShellAdaptor.GetFileInfo(FThumbnailCache[Item.Index].Pidl).szDisplayName);
+
+  // Рамка для миниатюры
+   Sender.DrawFrame(Item.DisplayRect(TDisplayCode.drIcon), clMedGray);
+
+  // Разместим миниатюру по центру
+  Sender.DrawThumbnail(Item.DisplayRect(TDisplayCode.drIcon),
+    FThumbnailCache[Item.Index].Bitmap);
 end;
 
 procedure TMainForm.AboutMenuClick(Sender: TObject);
@@ -148,39 +182,9 @@ begin
   end;
 end;
 
-procedure TMainForm.AddThumbNail(AThumbFile: IThumbnail);
+procedure TMainForm.ExitMenuClick(Sender: TObject);
 begin
-  // Добавить миниатюру в кеш
-  FThumbnailCache.Add(AThumbFile);
-end;
-
-procedure TMainForm.ThumbnailViewAdvancedCustomDrawItem(Sender: TCustomListView; Item: TListItem;
-  State: TCustomDrawState; Stage: TCustomDrawStage; var DefaultDraw: Boolean);
-var
-  Text    : String;
-  IconRect: TRect;
-  TextRect: TRect;
-  Bitmap  : TBitmap;
-begin
-  Sender.Canvas.Font.Size := 8;
-  TextRect                := Item.DisplayRect(TDisplayCode.drLabel);
-  Text                    := TTShellAdaptor.GetFileInfo(FThumbnailCache[Item.Index].Pidl).szDisplayName;
-  Sender.Canvas.TextWidth(Text);
-  // Выводим название файла по центру
-  TextRect.Left := TextRect.Left + ((TextRect.Width - Sender.Canvas.TextWidth(Text)) shr 1);
-  Sender.Canvas.TextRect(TextRect, Text);
-
-  // Размер рамки под иконку
-  IconRect := Item.DisplayRect(TDisplayCode.drIcon);
-  Bitmap   := FThumbnailCache[Item.Index].Bitmap;
-
-  // Рамка для миниатюры
-  Sender.Canvas.Pen.Color := clMedGray;
-  Sender.Canvas.RoundRect(IconRect, IconRect.Height shr 2, IconRect.Width shr 2);
-
-  // Разместим миниатюру по центру
-  Sender.Canvas.Draw(IconRect.Left + ((IconRect.Width - Bitmap.Width) shr 1),
-    IconRect.Top + ((IconRect.Height - Bitmap.Height) shr 1), FThumbnailCache[Item.Index].Bitmap);
+  Close;
 end;
 
 end.

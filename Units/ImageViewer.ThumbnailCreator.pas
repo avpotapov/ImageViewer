@@ -4,18 +4,18 @@ interface
 
 uses
   Winapi.Windows,
-  Winapi.Messages,
   Winapi.ShellApi,
-  System.SysUtils,
-  System.Variants,
-  System.Classes,
   Winapi.ShlObj,
-  System.Generics.Collections,
-  System.SyncObjs,
-  ImageViewer.ShellAdaptor,
-  Vcl.Graphics,
   Winapi.ActiveX,
 
+  System.SysUtils,
+  System.Classes,
+  System.SyncObjs,
+  System.Generics.Collections,
+
+  Vcl.Graphics,
+
+  ImageViewer.ShellAdaptor,
   ImageViewer.Thumbnail;
 
 type
@@ -137,6 +137,7 @@ begin
     finally
       TTShellAdaptor.FreePidl(RelPidl);
     end;
+
 
 end;
 

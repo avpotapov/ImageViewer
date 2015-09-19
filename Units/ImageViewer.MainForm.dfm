@@ -37,7 +37,6 @@ object MainForm: TMainForm
     OnCollapsed = FolderTreeCollapsed
     OnCreateNodeClass = FolderTreeCreateNodeClass
     OnExpanding = FolderTreeExpanding
-    ExplicitHeight = 582
   end
   object ThumbnailPanel: TPanel
     Left = 268
@@ -47,7 +46,6 @@ object MainForm: TMainForm
     Align = alClient
     Caption = 'ThumbnailPanel'
     TabOrder = 1
-    ExplicitHeight = 582
     object ThumbnailView: TListView
       Left = 1
       Top = 22
@@ -63,7 +61,6 @@ object MainForm: TMainForm
       SmallImages = ImageList
       TabOrder = 0
       OnAdvancedCustomDrawItem = ThumbnailViewAdvancedCustomDrawItem
-      ExplicitHeight = 559
     end
     object SizerPanel: TPanel
       Left = 1
